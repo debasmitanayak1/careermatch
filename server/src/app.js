@@ -16,29 +16,16 @@ dotenv.config();
 
 const app = express();
 
-// Trust proxy for reverse proxies / Vercel
+// Trust proxy for reverse proxies / Render / Vercel
 app.set('trust proxy', 1);
 
 // Security headers with Helmet
 app.use(helmet());
 
-// CORS configuration
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-].filter(Boolean);
-
+// CORS configuration (allow requests from any client origin or configured CLIENT_URL)
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-        return callback(null, true);
-      }
-      return callback(new HttpError(403, 'CORS origin not allowed by policy.'));
-    },
+    origin: true,
     credentials: true,
   })
 );
@@ -46,26 +33,33 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
 });
-app.use('/api/', limiter);
+app.use(limiter);
 
 // Body parsing middleware
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Mount Health Check at both /api/health and /health
+// Mount Health Check at both /api/health and /health and /
 app.use('/api', healthRoutes);
 app.use('/', healthRoutes);
 
-// Mount API feature routes
+// Mount API feature routes with and without /api prefix
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/resumes', resumeRoutes);
+app.use('/resumes', resumeRoutes);
+
 app.use('/api/analyses', analysisRoutes);
+app.use('/analyses', analysisRoutes);
+
 app.use('/api/matches', matchRoutes);
+app.use('/matches', matchRoutes);
 
 // 404 handler for unmapped routes
 app.use((req, res, next) => {
